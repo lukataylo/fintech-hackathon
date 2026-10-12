@@ -234,7 +234,7 @@ function validateSubmission(body) {
     title: clean(body.title, 90), track: clean(body.track, 20), tagline: clean(body.tagline, 160),
     description: clean(body.description, 2000), teamName: clean(body.teamName, 80),
     videoUrl: clean(body.videoUrl, 500), demoUrl: clean(body.demoUrl, 500), contactEmail: clean(body.contactEmail, 200),
-    members: (Array.isArray(body.members) ? body.members : []).slice(0, 6)
+    members: (Array.isArray(body.members) ? body.members : []).slice(0, 4)
       .map(m => ({ name: clean(m?.name, 80), linkedin: clean(m?.linkedin, 300) })).filter(m => m.name || m.linkedin),
   };
   if (!out.title) errors.title = 'Give your project a name.';

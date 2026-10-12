@@ -37,7 +37,7 @@ If `submissionsOpen` is `false`, stop and tell the human to find an organiser. `
 | `title` | yes | 90 chars | The project name |
 | `tagline` | yes | 160 chars | One line: who it helps and how |
 | `description` | yes | 2,000 chars | See the template below |
-| `members` | yes | 1–6 people | `[{ "name": "Full Name", "linkedin": "https://www.linkedin.com/in/…" }]`. LinkedIn is optional per person, but must be a full `https://` URL if given |
+| `members` | yes | 1–4 people | `[{ "name": "Full Name", "linkedin": "https://www.linkedin.com/in/…" }]`. LinkedIn is optional per person, but must be a full `https://` URL if given |
 | `teamName` | no | 80 chars | |
 | `contactEmail` | yes | | Only organisers see it |
 | `videoUrl` | yes | | Loom or YouTube (unlisted is fine), **1 minute 30 seconds or less**. Judges stop at 1:30. The server can't check length or access, so ask the human to confirm both: under 1:30, and it plays in a private browser window |

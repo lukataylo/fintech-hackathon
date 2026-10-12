@@ -55,7 +55,7 @@ ok(r.status === 201, 'formula-looking title + unicode names accepted (stored as 
 const evilToken = r.data.editToken;
 r = await req('/api/submissions', { method: 'POST', body: sub(1, { members: Array.from({ length: 50 }, (_, i) => ({ name: `M${i}`, linkedin: '' })) }) });
 ok(r.status === 201, '50 members accepted');
-ok((await req(`/api/submissions/${evilToken}`)).data.submission.members.length <= 6, 'members capped at 6');
+ok((await req(`/api/submissions/${evilToken}`)).data.submission.members.length <= 4, 'members capped at 4');
 ok((await req('/api/submissions/' + 'f'.repeat(32))).status === 404, 'random edit token → 404');
 ok([401, 404].includes((await req('/api/submissions/../../api/admin/state')).status), 'token path tricks never reach admin data');
 

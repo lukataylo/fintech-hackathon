@@ -145,7 +145,7 @@
       const form = document.getElementById('form');
       const list = document.getElementById('members');
       document.getElementById('addMember').onclick = () => {
-        if (list.children.length >= 6) return toast('Teams can have up to 6 members');
+        if (list.children.length >= 4) return toast('Teams can have up to 4 members');
         list.insertAdjacentHTML('beforeend', memberRow(blankMember(), list.children.length));
         list.lastElementChild.querySelector('input').focus();
       };
