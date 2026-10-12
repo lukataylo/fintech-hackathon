@@ -59,6 +59,20 @@ ok((await req(`/api/submissions/${evilToken}`)).data.submission.members.length <
 ok((await req('/api/submissions/' + 'f'.repeat(32))).status === 404, 'random edit token → 404');
 ok([401, 404].includes((await req('/api/submissions/../../api/admin/state')).status), 'token path tricks never reach admin data');
 
+console.log('\n3b. Agent submissions');
+r = await req('/submit.md'); ok(r.status === 200 && r.headers.get('content-type').includes('markdown') && !r.data.includes('{{ORIGIN}}') && r.data.includes(B + '/api/submissions'), 'submit.md served with this host filled in');
+ok((await req('/llms.txt')).status === 200, 'llms.txt served');
+const before = (await req('/api/admin/state', { headers: A })).data.submissions.length;
+r = await req('/api/submissions?dryRun=1', { method: 'POST', body: sub(7000) });
+ok(r.status === 200 && r.data.dryRun && (await req('/api/admin/state', { headers: A })).data.submissions.length === before, 'dry run validates without saving');
+r = await req('/api/submissions', { method: 'POST', body: sub(7000) });
+ok(r.status === 201 && r.data.editUrl?.startsWith(B + '/submit?edit='), 'create returns a private editUrl');
+const agentToken = r.data.editToken;
+ok((await req('/api/submissions', { method: 'POST', body: sub(7000, { title: 'CHAOS 7000', contactEmail: 'C7000@X.IO' }) })).status === 409, 'agent retry with same title + email → 409, no duplicate');
+ok((await req(`/api/submissions/${agentToken}?dryRun=1`, { method: 'PUT', body: sub(7000, { tagline: 'changed' }) })).status === 200 && (await req(`/api/submissions/${agentToken}`)).data.submission.tagline === 't', 'PUT dry run changes nothing');
+ok((await req(`/api/submissions/${agentToken}`, { method: 'PUT', body: sub(7000, { tagline: 'changed' }) })).status === 200 && (await req(`/api/submissions/${agentToken}`)).data.submission.tagline === 'changed', 'PUT by token updates the entry');
+ok((await req('/api/submissions', { method: 'POST', body: sub(7001, { members: [{ name: 'Solo' }] }) })).status === 201, 'member without LinkedIn accepted');
+
 console.log('\n4. Authentication');
 ok((await req('/api/admin/state')).status === 401, 'admin without key → 401');
 ok((await req('/api/admin/state', { headers: { 'x-admin-key': AK + 'x' } })).status === 401, 'admin with wrong key → 401');

@@ -286,6 +286,11 @@ function noteFailure(req) {
   failures.set(ip, f && Date.now() - f.t < 600_000 ? { n: f.n + 1, t: f.t } : { n: 1, t: Date.now() });
   if (failures.size > 10_000) failures.clear();
 }
+const origin = req => {
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'shiptonight.com').split(',')[0].trim().replace(/[^\w.:-]/g, '');
+  const proto = String(req.headers['x-forwarded-proto'] || (host.startsWith('localhost') ? 'http' : 'https')).split(',')[0].trim() === 'http' ? 'http' : 'https';
+  return `${proto}://${host}`;
+};
 const requireJudge = req => {
   guardFailures(req);
   const j = findJudge(req.headers['x-judge-key']);
@@ -375,12 +380,16 @@ async function api(req, res, url) {
     if (!submissionsOpen()) throw new HttpError(403, 'Submissions are closed.');
     const { out, errors } = validateSubmission(await readJson(req));
     if (Object.keys(errors).length) throw new HttpError(422, 'Please check the highlighted fields.', { errors });
+    // Agents retry. The same title from the same contact email is the same entry, not a new one.
+    const dupe = db.prepare('SELECT id FROM submissions WHERE withdrawn = 0 AND lower(title) = lower(?) AND lower(contact_email) = lower(?)').get(out.title, out.contactEmail);
+    if (dupe) throw new HttpError(409, 'This project is already submitted from this email. Use your private edit link to change it, or ask an organiser if you lost it.', { id: dupe.id });
+    if (url.searchParams.has('dryRun')) return send(res, 200, { ok: true, dryRun: true, submission: out });
     const token = crypto.randomBytes(16).toString('hex');
     const t = now();
     const r = db.prepare(`INSERT INTO submissions (title, track, tagline, description, team_name, members, video_url, demo_url, contact_email, edit_token, judge_id, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(out.title, out.track, out.tagline, out.description, out.teamName, JSON.stringify(out.members),
       out.videoUrl, out.demoUrl, out.contactEmail, token, pickJudgeFor(out.track), t, t);
-    return send(res, 201, { id: Number(r.lastInsertRowid), editToken: token });
+    return send(res, 201, { id: Number(r.lastInsertRowid), editToken: token, editUrl: `${origin(req)}/submit?edit=${token}` });
   }
   if ((match = p.match(/^\/api\/submissions\/([a-f0-9]{32})$/))) {
     const row = db.prepare('SELECT * FROM submissions WHERE edit_token = ?').get(match[1]);
@@ -390,10 +399,11 @@ async function api(req, res, url) {
       if (!submissionsOpen()) throw new HttpError(403, 'Submissions are closed, so edits are locked.');
       const { out, errors } = validateSubmission(await readJson(req));
       if (Object.keys(errors).length) throw new HttpError(422, 'Please check the highlighted fields.', { errors });
+      if (url.searchParams.has('dryRun')) return send(res, 200, { ok: true, dryRun: true, submission: out });
       const judgeId = out.track === row.track ? row.judge_id : pickJudgeFor(out.track);
       db.prepare(`UPDATE submissions SET title = ?, track = ?, tagline = ?, description = ?, team_name = ?, members = ?, video_url = ?, demo_url = ?, contact_email = ?, judge_id = ?, updated_at = ? WHERE id = ?`)
         .run(out.title, out.track, out.tagline, out.description, out.teamName, JSON.stringify(out.members), out.videoUrl, out.demoUrl, out.contactEmail, judgeId, now(), row.id);
-      return send(res, 200, { ok: true });
+      return send(res, 200, { ok: true, id: row.id, editUrl: `${origin(req)}/submit?edit=${row.edit_token}` });
     }
   }
 
@@ -513,7 +523,7 @@ async function api(req, res, url) {
 }
 
 const PAGES = { '/': 'index.html', '/submit': 'submit.html', '/judge': 'judge.html', '/admin': 'admin.html', '/results': 'results.html' };
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.avif': 'image/avif', '.ico': 'image/x-icon' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.avif': 'image/avif', '.md': 'text/markdown; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.ico': 'image/x-icon' };
 // Files are read once and kept in memory (gzipped where it helps): the whole site is under 1 MB.
 const fileCache = new Map();
 function loadFile(file) {
@@ -533,6 +543,11 @@ function serveStatic(req, res, url) {
   const file = path.normalize(path.join(PUBLIC, rel));
   if (!file.startsWith(PUBLIC + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return send(res, 404, 'Not found');
   const { body, gz, ext, etag } = loadFile(file);
+  // Agent docs carry {{ORIGIN}} so the same file works on localhost, Railway and the custom domain.
+  if (ext === '.md' || ext === '.txt') {
+    const text = body.toString('utf8').replaceAll('{{ORIGIN}}', origin(req));
+    return send(res, 200, text, { 'content-type': TYPES[ext], 'cache-control': 'public, max-age=300', 'access-control-allow-origin': '*' });
+  }
   const headers = {
     'content-type': TYPES[ext] || 'application/octet-stream', etag, vary: 'accept-encoding',
     'cache-control': ext === '.html' ? 'no-cache' : 'public, max-age=3600',

@@ -1,0 +1,14 @@
+# Fintech Hackathon
+
+> After-work fintech hackathon, London, 13 October 2026, by Singapore Global Network × Generate at LSE.
+> Tracks: Payments, Access to finance, Fraud and security. Entries close at 20:30 London time.
+
+## For agents
+
+- [Submit a project]({{ORIGIN}}/submit.md): how an AI agent submits or updates a team's project through the API, with field rules, a dry run and error codes.
+- [Event config]({{ORIGIN}}/api/config): JSON. Whether submissions are open, plus tracks and judging criteria.
+
+## For people
+
+- [Event page]({{ORIGIN}}/)
+- [Submission form]({{ORIGIN}}/submit)

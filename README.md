@@ -15,6 +15,20 @@ One Node process, no dependencies, SQLite on disk (`node:sqlite`, Node 22.13+).
 | `/admin` | Organisers | Phase control, judge links and progress, reassignment, finalists, winners, CSV |
 | `/results` | Projector | Click-to-reveal winners (public once the phase is "Results") |
 
+## Submitting with an AI agent
+
+Teams can have their coding agent (Claude Code, Cursor, Codex, Foldo) submit for them. Paste this one-liner:
+
+```
+Read https://shiptonight.com/submit.md and follow it to submit this project to the Fintech Hackathon.
+```
+
+[`/submit.md`](public/submit.md) tells the agent how to draft the entry from the repo and ask the human for anything it
+can't verify. That covers team members, LinkedIn links, email and the demo video, which it must never invent. It then
+validates with `POST /api/submissions?dryRun=1`, gets an explicit yes, submits, and hands back the private `editUrl`.
+Resubmitting the same title from the same email returns `409`, so retries can't create duplicates. `/llms.txt` points
+agents to the instructions, and both files fill in the host they're served from.
+
 ## Run locally
 
 ```sh
