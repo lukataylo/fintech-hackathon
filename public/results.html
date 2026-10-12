@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080808">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <title>Winners — Fintech Hackathon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/app.css">
+  <style>
+    body{background:radial-gradient(ellipse at 75% 20%,rgba(255,87,26,.13),transparent 55%),var(--bg)}
+    .wrap{padding:60px 0 90px}
+    .awards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:50px}
+    .award{border:1px solid var(--line-2);background:var(--panel);padding:26px;min-height:250px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;transition:border-color .3s,background .3s;text-align:left}
+    .award.overall{grid-column:1/-1;min-height:300px;border-color:var(--orange)}
+    .award h2{font-size:clamp(30px,3.6vw,52px);letter-spacing:-.065em;line-height:.98;margin:18px 0 10px;font-weight:600}
+    .award.overall h2{font-size:clamp(46px,7vw,104px);color:var(--orange)}
+    .award p{margin:0;color:#cfc9c2;font-size:16px}
+    .award .veil{font:12px "DM Mono",monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+    .award:not(.shown) .reveal{display:none}
+    .award.shown .veil{display:none}
+    .award.shown{animation:pop .6s cubic-bezier(.2,.8,.2,1)}
+    @keyframes pop{from{transform:scale(.97);opacity:.4}}
+    .finalists{margin-top:60px;border-top:1px solid var(--line);padding-top:24px;display:flex;flex-wrap:wrap;gap:10px 26px;font-size:15px;color:#cfc9c2}
+    @media(max-width:800px){.awards{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <header class="topbar"><a class="wordmark" href="/">Fintech<br>Hackathon</a><nav><span class="mono muted">Click a card to reveal</span></nav></header>
+  <main class="container wrap" id="app"><p class="muted">Loading…</p></main>
+  <script src="/assets/app.js"></script>
+  <script>
+  (async () => {
+    const { esc, api, store } = FH;
+    const app = document.getElementById('app');
+    try {
+      const adminKey = store.get('fh-admin-key');
+      const R = await api('/api/results', { headers: adminKey ? { 'x-admin-key': adminKey } : {} });
+      const card = (k, label, cls = '') => {
+        const s = R.winners[k];
+        return `<button class="award ${cls}" data-k="${k}"><span class="eyebrow orange" style="margin:0">${esc(label)}</span>
+          <span class="veil">${s ? 'Tap to reveal' : 'Not awarded'}</span>
+          ${s ? `<span class="reveal"><h2>${esc(s.title)}</h2><p>${esc(s.teamName || s.members.map(m => m.name).join(', '))}</p></span>` : ''}</button>`;
+      };
+      app.innerHTML = `<p class="eyebrow orange">Fintech Hackathon · 13 October 2026</p>
+        <h1 class="page-title">And the winners<br><em>are…</em></h1>
+        <div class="awards">${R.tracks.map(t => card(t.id, `${t.name} track`)).join('')}${card('overall', 'Overall winner', 'overall')}</div>
+        <div class="finalists"><span class="mono muted">Finalists</span>${R.finalists.map(f => `<span>${esc(f.title)}</span>`).join('')}</div>`;
+      app.querySelectorAll('.award').forEach(b => b.onclick = () => b.classList.add('shown'));
+    } catch (err) {
+      app.innerHTML = `<p class="eyebrow orange">Results</p><h1 class="page-title">Coming<br><em>soon.</em></h1><p class="lede">${esc(err.message)}</p>`;
+    }
+  })();
+  </script>
+</body>
+</html>

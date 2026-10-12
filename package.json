@@ -1,0 +1,12 @@
+{
+  "name": "fintech-hackathon",
+  "private": true,
+  "type": "module",
+  "description": "Fintech Hackathon landing page, submission portal and judging portal",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "load-test": "node scripts/load-test.mjs"
+  }
+}

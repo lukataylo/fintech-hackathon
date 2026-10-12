@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080808">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <title>Submit a project — Fintech Hackathon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/app.css">
+  <style>
+    .layout{display:grid;grid-template-columns:.8fr 1.2fr;gap:8%;padding:80px 0 110px}
+    .aside{position:sticky;top:120px;align-self:start}
+    .checklist{list-style:none;padding:0;margin:34px 0 0;border-top:1px solid var(--line)}
+    .checklist li{display:grid;grid-template-columns:34px 1fr;padding:15px 0;border-bottom:1px solid var(--line);font-size:15px;color:#cfc9c2}
+    .checklist li span{font:11px "DM Mono",monospace;color:var(--orange);padding-top:3px}
+    .form-section{border-top:1px solid var(--line);padding-top:26px;margin-top:10px}
+    .form-section+.form-section{margin-top:34px}
+    .form-section h2{font-size:22px;letter-spacing:-.04em;margin:0 0 22px;font-weight:600}
+    .actions{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-top:34px}
+    .done{padding:110px 0;max-width:720px}
+    .edit-link{display:flex;gap:8px;margin:26px 0 8px}
+    .edit-link input{font-family:"DM Mono",monospace;font-size:13px}
+    .closed{padding:120px 0}
+    @media(max-width:850px){.layout{grid-template-columns:1fr;gap:40px;padding:56px 0 80px}.aside{position:static}}
+  </style>
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <header class="topbar"><a class="wordmark" href="/">Fintech<br>Hackathon</a><nav aria-label="Main"><a href="/#tracks">Tracks</a><a href="/#criteria">Judging</a><a href="/">Home</a></nav></header>
+
+  <main class="container" id="app">
+    <p class="muted" style="padding:80px 0">Loading…</p>
+  </main>
+
+  <script src="/assets/app.js"></script>
+  <script>
+  (() => {
+    const { esc, api, toast } = FH;
+    const app = document.getElementById('app');
+    const editToken = new URLSearchParams(location.search).get('edit');
+    let config, existing = null;
+
+    const blankMember = () => ({ name: '', linkedin: '' });
+
+    function formHtml(s) {
+      const members = s.members?.length ? s.members : [blankMember(), blankMember()];
+      return `
+      <div class="layout">
+        <aside class="aside">
+          <p class="eyebrow orange">${existing ? 'Edit your submission' : 'Submission portal'}</p>
+          <h1 class="page-title">Show us what<br><em>you built.</em></h1>
+          <p class="lede">One submission per team. You can edit it from your private link until submissions close.</p>
+          <ol class="checklist">
+            <li><span>01</span>Pick the track your project fits best.</li>
+            <li><span>02</span>Say what it does and who it helps, in plain words.</li>
+            <li><span>03</span>Add everyone on the team, with LinkedIn links.</li>
+            <li><span>04</span>Record a demo of <b>1 minute 30 seconds or less</b> on Loom or YouTube. Make the link viewable by anyone. Judges stop watching at 1:30.</li>
+          </ol>
+        </aside>
+        <form id="form" novalidate>
+          <section class="form-section">
+            <h2>Track</h2>
+            <div class="field" data-field="track">
+              <div class="track-choice" role="radiogroup" aria-label="Track">
+                ${config.tracks.map((t, i) => `<label><input type="radio" name="track" value="${t.id}" ${s.track === t.id ? 'checked' : ''}><span><span class="mono" style="color:var(--orange)">0${i + 1}</span><b>${esc(t.name)}</b></span></label>`).join('')}
+              </div>
+            </div>
+          </section>
+          <section class="form-section">
+            <h2>Project</h2>
+            <label class="field" data-field="title"><span>Project name</span><input type="text" name="title" maxlength="90" value="${esc(s.title)}" autocomplete="off"></label>
+            <label class="field" data-field="tagline"><span>One-line summary</span><input type="text" name="tagline" maxlength="160" value="${esc(s.tagline)}" placeholder="e.g. Shows freelancers exactly where an invoice payment is stuck"></label>
+            <label class="field" data-field="description"><span>What did you build, and who is it for?</span><textarea name="description" maxlength="2000" placeholder="The problem, who has it, what your project does, and how you'd keep users safe.">${esc(s.description)}</textarea><small>Up to 2,000 characters.</small></label>
+          </section>
+          <section class="form-section">
+            <h2>Team</h2>
+            <label class="field" data-field="teamName"><span>Team name (optional)</span><input type="text" name="teamName" maxlength="80" value="${esc(s.teamName)}"></label>
+            <div class="field" data-field="members">
+              <span class="field-label">Team members</span>
+              <div id="members">${members.map(memberRow).join('')}</div>
+              <button type="button" class="text-link" id="addMember" style="margin-top:8px">+ Add a member</button>
+            </div>
+            <label class="field" data-field="contactEmail"><span>Contact email</span><input type="email" name="contactEmail" maxlength="200" value="${esc(s.contactEmail)}" autocomplete="email"><small>Only organisers see this. We use it if you're a finalist.</small></label>
+          </section>
+          <section class="form-section">
+            <h2>Demo</h2>
+            <label class="field" data-field="videoUrl"><span>Demo video link (max 1:30)</span><input type="url" name="videoUrl" maxlength="500" value="${esc(s.videoUrl)}" placeholder="https://www.loom.com/share/…  or  https://youtu.be/…"><small>Loom or YouTube (unlisted is fine). Check it plays in a private window.</small></label>
+            <label class="field" data-field="demoUrl"><span>Live demo or code link (optional)</span><input type="url" name="demoUrl" maxlength="500" value="${esc(s.demoUrl)}" placeholder="https://…"></label>
+          </section>
+          <div class="actions">
+            <button class="button" type="submit">${existing ? 'Save changes' : 'Submit project'} <span>↗</span></button>
+            <span class="muted small" id="formStatus" role="status"></span>
+          </div>
+        </form>
+      </div>`;
+    }
+    function memberRow(m, i) {
+      return `<div class="member-row" data-field="members.${i}">
+        <input type="text" placeholder="Full name" aria-label="Member name" value="${esc(m.name)}" data-k="name" maxlength="80">
+        <input type="url" placeholder="https://linkedin.com/in/…" aria-label="LinkedIn profile" value="${esc(m.linkedin)}" data-k="linkedin" maxlength="300">
+        <button type="button" class="icon-btn" data-remove aria-label="Remove member">×</button>
+      </div>`;
+    }
+
+    function collect(form) {
+      const fd = new FormData(form);
+      return {
+        track: fd.get('track') || '', title: fd.get('title'), tagline: fd.get('tagline'), description: fd.get('description'),
+        teamName: fd.get('teamName'), contactEmail: fd.get('contactEmail'), videoUrl: fd.get('videoUrl'), demoUrl: fd.get('demoUrl'),
+        members: [...form.querySelectorAll('.member-row')].map(r => ({ name: r.querySelector('[data-k=name]').value, linkedin: r.querySelector('[data-k=linkedin]').value })),
+      };
+    }
+    function showErrors(form, errors = {}) {
+      form.querySelectorAll('.error-text').forEach(e => e.remove());
+      form.querySelectorAll('.invalid').forEach(e => e.classList.remove('invalid'));
+      let first;
+      for (const [key, msg] of Object.entries(errors)) {
+        const el = form.querySelector(`[data-field="${key}"]`) || (key.startsWith('members') && form.querySelector('[data-field="members"]'));
+        if (!el) continue;
+        el.classList.add('invalid');
+        const p = document.createElement('p'); p.className = 'error-text'; p.textContent = msg; el.append(p);
+        first ||= el;
+      }
+      first?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function renumberMembers(form) { form.querySelectorAll('.member-row').forEach((r, i) => r.dataset.field = `members.${i}`); }
+
+    function bind() {
+      const form = document.getElementById('form');
+      const list = document.getElementById('members');
+      document.getElementById('addMember').onclick = () => {
+        if (list.children.length >= 6) return toast('Teams can have up to 6 members');
+        list.insertAdjacentHTML('beforeend', memberRow(blankMember(), list.children.length));
+        list.lastElementChild.querySelector('input').focus();
+      };
+      list.addEventListener('click', e => {
+        if (!e.target.matches('[data-remove]')) return;
+        if (list.children.length === 1) { e.target.closest('.member-row').querySelectorAll('input').forEach(i => i.value = ''); return; }
+        e.target.closest('.member-row').remove(); renumberMembers(form);
+      });
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const btn = form.querySelector('button[type=submit]'); const status = document.getElementById('formStatus');
+        btn.disabled = true; status.textContent = 'Saving…';
+        try {
+          const body = collect(form);
+          if (existing) { await api(`/api/submissions/${editToken}`, { method: 'PUT', body }); showDone(editToken, body.title, true); }
+          else { const r = await api('/api/submissions', { method: 'POST', body }); showDone(r.editToken, body.title, false); }
+        } catch (err) {
+          status.textContent = err.message; showErrors(form, err.data?.errors); btn.disabled = false;
+        }
+      });
+    }
+
+    function showDone(token, title, edited) {
+      const link = `${location.origin}/submit?edit=${token}`;
+      try { localStorage.setItem('fh-edit-link', link); } catch {}
+      app.innerHTML = `<div class="done">
+        <p class="eyebrow orange">${edited ? 'Changes saved' : 'Submission received'}</p>
+        <h1 class="page-title">${esc(title)}<br><em>is in.</em></h1>
+        <p class="lede">Save this private link. You can use it to edit your submission until submissions close. Anyone with the link can edit, so share it only with your team.</p>
+        <div class="edit-link"><input type="text" readonly value="${esc(link)}" id="editLink" aria-label="Private edit link"><button class="button" id="copy">Copy</button></div>
+        <p style="margin-top:34px"><a class="text-link" href="/">Back to the event page</a></p>
+      </div>`;
+      document.getElementById('copy').onclick = async () => {
+        try { await navigator.clipboard.writeText(link); toast('Link copied'); } catch { document.getElementById('editLink').select(); }
+      };
+      scrollTo({ top: 0 });
+    }
+
+    function closedHtml(msg) {
+      return `<div class="closed"><p class="eyebrow orange">Submissions</p><h1 class="page-title">Submissions are<br><em>closed.</em></h1><p class="lede">${msg}</p><p style="margin-top:30px"><a class="text-link" href="/">Back to the event page</a></p></div>`;
+    }
+
+    (async () => {
+      try {
+        config = await api('/api/config');
+        if (editToken) {
+          const r = await api(`/api/submissions/${editToken}`);
+          existing = r.submission;
+          if (!r.submissionsOpen) { app.innerHTML = closedHtml(`Your project <b>${esc(existing.title)}</b> is with the judges. Good luck.`); return; }
+        } else if (!config.submissionsOpen) { app.innerHTML = closedHtml('The judges are reviewing projects now. If something went wrong with your submission, find an organiser.'); return; }
+        app.innerHTML = formHtml(existing || {});
+        bind();
+      } catch (err) {
+        app.innerHTML = `<p style="padding:80px 0">${esc(err.message)}</p>`;
+      }
+    })();
+  })();
+  </script>
+</body>
+</html>
