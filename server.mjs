@@ -569,7 +569,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
     return serveStatic(req, res, url);
   } catch (err) {
-    if (err instanceof HttpError) return send(res, err.status, { error: err.message, ...(err.extra || {}) });
+    if (err instanceof HttpError) {
+      // An oversized body was abandoned mid-stream: close the connection so a keep-alive client can't reuse it.
+      if (err.status === 413) { res.on('finish', () => req.destroy()); return send(res, 413, { error: err.message }, { connection: 'close' }); }
+      return send(res, err.status, { error: err.message, ...(err.extra || {}) });
+    }
     console.error(err);
     if (res.headersSent) return res.destroy();
     return send(res, 500, { error: 'Something went wrong on our side. Try again in a moment.' });
