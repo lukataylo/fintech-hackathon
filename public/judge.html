@@ -253,9 +253,9 @@
     function renderChrome() {
       const l = list(); const done = l.filter(isDone).length;
       const r1 = S.phase === 'submissions' || S.phase === 'review';
-      const tabs = r1 ? [['review', 'Swipe'], ['list', `List (${l.length})`], ['picks', 'Top 3 picks']] : [[view, 'Swipe']];
+      const tabs = r1 ? [['review', 'Swipe'], ['list', `List (${l.length})`], ['picks', S.judge.sponsor ? 'Winner pick' : 'Top 3 picks']] : [[view, 'Swipe']];
       const sub = {
-        review: `Watch each demo (1:30 max), score all four criteria, then swipe. Afterwards choose your top project in each track.`,
+        review: `Watch each demo (1:30 max), score all four criteria, then swipe. Afterwards choose ${S.judge.sponsor ? `the winner of the ${esc(S.tracks[0].name)}` : 'your top project in each track'}.`,
         list: 'Every project assigned to you. Click one to open it.',
         picks: 'Choose one project per track. These go to the whole panel in round 2.',
         shortlist: `Every judge's top picks. Score them all. The top ${S.finalistCount} present live.`,
@@ -264,7 +264,7 @@
       document.getElementById('chrome').innerHTML = `
         <div class="judge-head">
           <div><p class="eyebrow orange" style="margin-bottom:12px">${esc(roundTitle())}</p>
-          <h1>${view === 'picks' ? 'Your <em>top 3.</em>' : view === 'shortlist' ? 'The <em>shortlist.</em>' : view === 'finals' ? 'The <em>finals.</em>' : 'Your <em>projects.</em>'}</h1>
+          <h1>${view === 'picks' ? (S.judge.sponsor ? 'Your <em>winner.</em>' : 'Your <em>top 3.</em>') : view === 'shortlist' ? 'The <em>shortlist.</em>' : view === 'finals' ? 'The <em>finals.</em>' : 'Your <em>projects.</em>'}</h1>
           <p class="muted small" style="margin:10px 0 0;max-width:620px">${sub}</p></div>
           ${tabs.length > 1 ? `<div class="tabs" role="tablist">${tabs.map(([v, label]) => `<button role="tab" aria-selected="${v === view}" data-view="${v}">${label}</button>`).join('')}</div>` : ''}
         </div>
@@ -469,7 +469,7 @@
     function renderAllDone() {
       const el = document.getElementById('view');
       if (view === 'review') {
-        el.innerHTML = `<div class="empty"><p class="eyebrow orange">All scored</p><h2>Now pick your<br><em>top 3.</em></h2><p class="lede">One project per track. We've preselected your highest score in each. Check them and confirm.</p><button class="button" id="toPicks">Choose top picks →</button></div>`;
+        el.innerHTML = `<div class="empty"><p class="eyebrow orange">All scored</p><h2>Now pick your<br><em>${S.judge.sponsor ? 'winner' : 'top 3'}.</em></h2><p class="lede">${S.judge.sponsor ? `One project wins the ${esc(S.tracks[0].name)}. We've preselected your highest score. Check it and confirm.` : `One project per track. We've preselected your highest score in each. Check them and confirm.`}</p><button class="button" id="toPicks">Choose top picks →</button></div>`;
         document.getElementById('toPicks').onclick = () => { view = 'picks'; render(); };
       } else if (view === 'shortlist') {
         el.innerHTML = `<div class="empty"><p class="eyebrow orange">Shortlist scored</p><h2>Thank you.<br><em>That's round 2.</em></h2><p class="lede">The organisers will confirm the top ${S.finalistCount} once every judge has finished. This page moves on by itself.</p><button class="button ghost" id="again">Review my scores</button></div>`;
