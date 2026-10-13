@@ -313,7 +313,7 @@
             <div class="details">
               <div><p class="desc" id="desc">${esc(s.description)}</p>${s.description.length > 420 ? '<button class="text-link" id="more" style="margin-top:10px">Read more</button>' : ''}</div>
               <div><p class="eyebrow" style="margin-bottom:8px">${esc(s.teamName || 'Team')}</p><div class="members">${s.members.map(m => safeUrl(m.linkedin) ? `<a href="${esc(safeUrl(m.linkedin))}" target="_blank" rel="noopener">${esc(m.name)} ↗</a>` : `<span>${esc(m.name)}</span>`).join('')}</div></div>
-              <div class="meta-row">${safeUrl(s.videoUrl) ? `<a class="text-link" href="${esc(safeUrl(s.videoUrl))}" target="_blank" rel="noopener">Video in new tab ↗</a>` : ''}${safeUrl(s.demoUrl) ? `<a class="text-link" href="${esc(safeUrl(s.demoUrl))}" target="_blank" rel="noopener">Live demo / code ↗</a>` : ''}</div>
+              <div class="meta-row">${safeUrl(s.videoUrl) ? `<a class="text-link" href="${esc(safeUrl(s.videoUrl))}" target="_blank" rel="noopener">Video in new tab ↗</a>` : ''}${safeUrl(s.demoUrl) ? `<a class="text-link" href="${esc(safeUrl(s.demoUrl))}" target="_blank" rel="noopener">Live demo / code ↗</a>` : ''}${safeUrl(s.foldoUrl) ? `<a class="text-link" href="${esc(safeUrl(s.foldoUrl))}" target="_blank" rel="noopener">Foldo ↗</a>` : ''}</div>
             </div>
           </article>
         </div>

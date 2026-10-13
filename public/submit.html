@@ -98,6 +98,7 @@
             <h2>Demo</h2>
             <label class="field" data-field="videoUrl"><span>Demo video link (max 1:30)</span><input type="url" name="videoUrl" maxlength="500" value="${esc(s.videoUrl)}" placeholder="https://www.loom.com/share/…  or  https://youtu.be/…"><small>Loom or YouTube (unlisted is fine). Check it plays in a private window.</small></label>
             <label class="field" data-field="demoUrl"><span>Live demo or code link (optional)</span><input type="url" name="demoUrl" maxlength="500" value="${esc(s.demoUrl)}" placeholder="https://…"></label>
+            <label class="field" data-field="foldoUrl"><span>Foldo link (optional)</span><input type="url" name="foldoUrl" maxlength="500" value="${esc(s.foldoUrl || '')}" placeholder="https://…"><small>Built on Foldo? Paste your share link so judges can try it.</small></label>
           </section>
           <div class="actions">
             <button class="button" type="submit">${existing ? 'Save changes' : 'Submit project'} <span>↗</span></button>
@@ -118,7 +119,7 @@
       const fd = new FormData(form);
       return {
         track: fd.get('track') || '', title: fd.get('title'), tagline: fd.get('tagline'), description: fd.get('description'),
-        teamName: fd.get('teamName'), contactEmail: fd.get('contactEmail'), videoUrl: fd.get('videoUrl'), demoUrl: fd.get('demoUrl'),
+        teamName: fd.get('teamName'), contactEmail: fd.get('contactEmail'), videoUrl: fd.get('videoUrl'), demoUrl: fd.get('demoUrl'), foldoUrl: fd.get('foldoUrl'),
         members: [...form.querySelectorAll('.member-row')].map(r => ({ name: r.querySelector('[data-k=name]').value, linkedin: r.querySelector('[data-k=linkedin]').value })),
       };
     }

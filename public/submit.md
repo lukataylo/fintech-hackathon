@@ -41,7 +41,8 @@ If `submissionsOpen` is `false`, stop and tell the human to find an organiser. `
 | `teamName` | no | 80 chars | |
 | `contactEmail` | yes | | Only organisers see it |
 | `videoUrl` | yes | | Loom or YouTube (unlisted is fine), **1 minute 30 seconds or less**. Judges stop at 1:30. The server can't check length or access, so ask the human to confirm both: under 1:30, and it plays in a private browser window |
-| `demoUrl` | no | | Live app, Foldo share link or code repo, `https://` |
+| `demoUrl` | no | | Live app or code repo, `https://` |
+| `foldoUrl` | no | | Foldo share link, if the project was built on Foldo, `https://` |
 
 Optional fields can be left out or sent as `""`. A member without LinkedIn can be just `{ "name": "Full Name" }`.
 
@@ -76,7 +77,8 @@ Trust: what could go wrong for users, and what the project does about it.
   ],
   "contactEmail": "team@example.com",
   "videoUrl": "https://www.loom.com/share/…",
-  "demoUrl": "https://…"
+  "demoUrl": "https://…",
+  "foldoUrl": "https://…"
 }
 ```
 
