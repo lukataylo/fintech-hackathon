@@ -145,6 +145,21 @@
         </section>
 
         <section class="block">
+          <div class="block-head"><h2>Sponsor prizes</h2><span class="muted small">Separate from the main judging. Zaro: entries that ticked the Zaro box. Foldo: entries with a Foldo link or video.</span></div>
+          <div class="judges">${(S.sponsors || []).map(sp => {
+            const link = `${location.origin}/judge?k=${sp.code}`;
+            const pick = sp.entries.find(e => e.id === sp.pick);
+            return `<div class="jbox"><div class="jbox-head"><div><h3>${esc(sp.judge)}</h3><span class="muted small">${esc(sp.name)}</span></div></div>
+              <div style="margin-top:12px">
+                <div class="stat"><span>Entries</span><b>${sp.entries.length}</b></div>
+                <div class="stat"><span>Scored</span><b>${sp.entries.filter(e => e.score != null).length} / ${sp.entries.length}</b></div>
+                <div class="stat"><span>Winner pick</span><b>${pick ? esc(pick.title) : '—'}</b></div>
+              </div>
+              <div class="link"><input readonly value="${esc(link)}" aria-label="Judge link for ${esc(sp.judge)}"><button class="button small" data-copy="${esc(link)}">Copy</button></div></div>`;
+          }).join('')}</div>
+        </section>
+
+        <section class="block">
           <div class="block-head"><h2>Submissions</h2>
             <div class="row-actions"><button class="button small ghost" id="rebalance">Even out unscored entries</button><a class="button small ghost" href="#" id="csv">Export CSV</a></div></div>
           <div class="scroll"><table><thead><tr><th>#</th><th>Project</th><th>Track</th><th>Judge</th><th>R1</th><th>Video</th><th></th></tr></thead><tbody>

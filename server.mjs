@@ -34,6 +34,12 @@ const JUDGES = [
   { id: 'guest1', name: 'Guest judge 1', org: '', optional: true },
   { id: 'guest2', name: 'Guest judge 2', org: '', optional: true },
 ];
+// Sponsor prizes: a separate judge per sponsor who sees only the entries that qualify, scores them and picks one winner.
+// They sit outside the main judging (no assignments, picks or shortlist), so the core rounds are unaffected.
+const SPONSORS = [
+  { id: 'zaro', name: 'Zaro prize', judge: 'Zaro judge', org: 'Zaro', round: 10, eligible: s => s.zaro },
+  { id: 'foldo', name: 'Foldo prize', judge: 'Foldo judge', org: 'Foldo', round: 11, eligible: s => !!(s.foldoUrl || s.foldoVideoUrl) },
+];
 const PHASES = ['submissions', 'review', 'shortlist', 'finals', 'results'];
 const FINALIST_COUNT = 6;
 
@@ -65,6 +71,7 @@ db.exec(`
 if (!db.prepare("SELECT 1 FROM pragma_table_info('judges') WHERE name = 'active'").get()) db.exec('ALTER TABLE judges ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
 if (!db.prepare("SELECT 1 FROM pragma_table_info('submissions') WHERE name = 'foldo_url'").get()) db.exec("ALTER TABLE submissions ADD COLUMN foldo_url TEXT NOT NULL DEFAULT ''");
 if (!db.prepare("SELECT 1 FROM pragma_table_info('submissions') WHERE name = 'foldo_video_url'").get()) db.exec("ALTER TABLE submissions ADD COLUMN foldo_video_url TEXT NOT NULL DEFAULT ''");
+if (!db.prepare("SELECT 1 FROM pragma_table_info('submissions') WHERE name = 'zaro'").get()) db.exec('ALTER TABLE submissions ADD COLUMN zaro INTEGER NOT NULL DEFAULT 0');
 const codeFor = () => crypto.randomBytes(4).toString('hex');
 JUDGES.forEach((j, i) => {
   const envCode = process.env[`JUDGE_CODE_${j.id.toUpperCase()}`]?.trim().toLowerCase();
@@ -91,13 +98,25 @@ const now = () => new Date().toISOString();
 const judges = () => db.prepare('SELECT id, name, org, code, active FROM judges ORDER BY sort').all()
   .map(j => ({ ...j, active: !!j.active, optional: !!JUDGES.find(x => x.id === j.id)?.optional }));
 const activeJudges = () => judges().filter(j => j.active);
-const findJudge = code => (code ? db.prepare('SELECT id, name, org FROM judges WHERE code = ? AND active = 1').get(String(code).trim().toLowerCase()) : null);
+function sponsorCodes() {
+  let c = getSetting('sponsorCodes', null);
+  if (!c) { c = Object.fromEntries(SPONSORS.map(sp => [sp.id, process.env[`JUDGE_CODE_${sp.id.toUpperCase()}`]?.trim().toLowerCase() || codeFor()])); setSetting('sponsorCodes', c); }
+  return c;
+}
+const findJudge = code => {
+  if (!code) return null;
+  const c = String(code).trim().toLowerCase();
+  const row = db.prepare('SELECT id, name, org FROM judges WHERE code = ? AND active = 1').get(c);
+  if (row) return row;
+  const sp = SPONSORS.find(x => sponsorCodes()[x.id] === c);
+  return sp ? { id: `sponsor-${sp.id}`, name: sp.judge, org: sp.org, sponsor: sp.id } : null;
+};
 
 function rowToSubmission(r, { includePrivate = false } = {}) {
   if (!r) return null;
   const s = {
     id: r.id, title: r.title, track: r.track, tagline: r.tagline, description: r.description, teamName: r.team_name,
-    members: JSON.parse(r.members || '[]'), videoUrl: r.video_url, demoUrl: r.demo_url, foldoUrl: r.foldo_url, foldoVideoUrl: r.foldo_video_url, judgeId: r.judge_id,
+    members: JSON.parse(r.members || '[]'), videoUrl: r.video_url, demoUrl: r.demo_url, foldoUrl: r.foldo_url, foldoVideoUrl: r.foldo_video_url, zaro: !!r.zaro, judgeId: r.judge_id,
     withdrawn: !!r.withdrawn, createdAt: r.created_at, updatedAt: r.updated_at,
   };
   if (includePrivate) s.contactEmail = r.contact_email;
@@ -235,7 +254,7 @@ function validateSubmission(body) {
   const out = {
     title: clean(body.title, 90), track: clean(body.track, 20), tagline: clean(body.tagline, 160),
     description: clean(body.description, 2000), teamName: clean(body.teamName, 80),
-    videoUrl: clean(body.videoUrl, 500), demoUrl: clean(body.demoUrl, 500), foldoUrl: clean(body.foldoUrl, 500), foldoVideoUrl: clean(body.foldoVideoUrl, 500), contactEmail: clean(body.contactEmail, 200),
+    videoUrl: clean(body.videoUrl, 500), demoUrl: clean(body.demoUrl, 500), foldoUrl: clean(body.foldoUrl, 500), foldoVideoUrl: clean(body.foldoVideoUrl, 500), zaro: body.zaro === true || body.zaro === 'true' || body.zaro === 1 || body.zaro === 'on', contactEmail: clean(body.contactEmail, 200),
     members: (Array.isArray(body.members) ? body.members : []).slice(0, 4)
       .map(m => ({ name: clean(m?.name, 80), linkedin: clean(m?.linkedin, 300) })).filter(m => m.name || m.linkedin),
   };
@@ -309,7 +328,18 @@ const requireAdmin = req => {
 };
 
 // ---------- judge state ----------
+function sponsorJudgeState(judge) {
+  const sp = SPONSORS.find(x => x.id === judge.sponsor);
+  const scores = new Map(db.prepare('SELECT * FROM scores WHERE judge_id = ? AND round = ?').all(judge.id, sp.round).map(r => [r.submission_id, scoreRow(r)]));
+  const pick = getSetting(`sponsorPick:${sp.id}`, null);
+  return {
+    judge, phase: phase() === 'submissions' ? 'submissions' : 'review', tracks: [{ id: sp.id, name: sp.name }], criteria: CRITERIA, finalistCount: FINALIST_COUNT,
+    review: activeSubmissions().filter(sp.eligible).map(s => ({ ...s, realTrack: s.track, track: sp.id, score: scores.get(s.id) || null })),
+    picks: pick != null ? { [sp.id]: pick } : {},
+  };
+}
 function judgeState(judge) {
+  if (judge.sponsor) return sponsorJudgeState(judge);
   const ph = phase();
   const subs = activeSubmissions();
   const byId = new Map(subs.map(s => [s.id, s]));
@@ -356,6 +386,11 @@ function adminState() {
     finalists: finalists(), finalistsLocked: !!getSetting('finalists', null), suggestedFinalists: suggestedFinalists(),
     finals: aggregate(3, finalists()).sort(byScore),
     winners: winners(), suggestedWinners: suggestedWinners(), winnersLocked: !!getSetting('winners', null),
+    sponsors: SPONSORS.map(sp => {
+      const scores = scoresFor(sp.round).filter(x => x.total != null);
+      return { id: sp.id, name: sp.name, judge: sp.judge, code: sponsorCodes()[sp.id], pick: getSetting(`sponsorPick:${sp.id}`, null),
+        entries: live.filter(sp.eligible).map(s => ({ id: s.id, title: s.title, score: scores.find(x => x.submissionId === s.id)?.total ?? null })) };
+    }),
   };
 }
 
@@ -365,8 +400,8 @@ function csvExport() {
   const [a1, a2, a3] = [agg(1), agg(2), agg(3)];
   const fin = new Set(finalists()); const w = winners();
   const q = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`; return `"${t.replace(/"/g, '""')}"`; };
-  const head = ['id', 'title', 'track', 'team', 'members', 'video', 'demo', 'foldo', 'foldo_video', 'email', 'judge', 'round1', 'round2_avg', 'finals_avg', 'finalist', 'award', 'withdrawn'];
-  const rows = subs.map(s => [s.id, s.title, s.track, s.teamName, s.members.map(m => `${m.name} ${m.linkedin}`).join('; '), s.videoUrl, s.demoUrl, s.foldoUrl, s.foldoVideoUrl,
+  const head = ['id', 'title', 'track', 'team', 'members', 'video', 'demo', 'foldo', 'foldo_video', 'zaro', 'email', 'judge', 'round1', 'round2_avg', 'finals_avg', 'finalist', 'award', 'withdrawn'];
+  const rows = subs.map(s => [s.id, s.title, s.track, s.teamName, s.members.map(m => `${m.name} ${m.linkedin}`).join('; '), s.videoUrl, s.demoUrl, s.foldoUrl, s.foldoVideoUrl, s.zaro ? 'yes' : '',
     s.contactEmail, s.judgeId, a1.get(s.id)?.avg, a2.get(s.id)?.avg, a3.get(s.id)?.avg, fin.has(s.id) ? 'yes' : '',
     Object.entries(w).filter(([, id]) => id === s.id).map(([k]) => k).join(' '), s.withdrawn ? 'yes' : '']);
   return [head, ...rows].map(r => r.map(q).join(',')).join('\n');
@@ -390,9 +425,9 @@ async function api(req, res, url) {
     if (url.searchParams.has('dryRun')) return send(res, 200, { ok: true, dryRun: true, submission: out });
     const token = crypto.randomBytes(16).toString('hex');
     const t = now();
-    const r = db.prepare(`INSERT INTO submissions (title, track, tagline, description, team_name, members, video_url, demo_url, foldo_url, foldo_video_url, contact_email, edit_token, judge_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(out.title, out.track, out.tagline, out.description, out.teamName, JSON.stringify(out.members),
-      out.videoUrl, out.demoUrl, out.foldoUrl, out.foldoVideoUrl, out.contactEmail, token, pickJudgeFor(out.track), t, t);
+    const r = db.prepare(`INSERT INTO submissions (title, track, tagline, description, team_name, members, video_url, demo_url, foldo_url, foldo_video_url, zaro, contact_email, edit_token, judge_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(out.title, out.track, out.tagline, out.description, out.teamName, JSON.stringify(out.members),
+      out.videoUrl, out.demoUrl, out.foldoUrl, out.foldoVideoUrl, out.zaro ? 1 : 0, out.contactEmail, token, pickJudgeFor(out.track), t, t);
     return send(res, 201, { id: Number(r.lastInsertRowid), editToken: token, editUrl: `${origin(req)}/submit?edit=${token}` });
   }
   if ((match = p.match(/^\/api\/submissions\/([a-f0-9]{32})$/))) {
@@ -405,8 +440,8 @@ async function api(req, res, url) {
       if (Object.keys(errors).length) throw new HttpError(422, 'Please check the highlighted fields.', { errors });
       if (url.searchParams.has('dryRun')) return send(res, 200, { ok: true, dryRun: true, submission: out });
       const judgeId = out.track === row.track ? row.judge_id : pickJudgeFor(out.track);
-      db.prepare(`UPDATE submissions SET title = ?, track = ?, tagline = ?, description = ?, team_name = ?, members = ?, video_url = ?, demo_url = ?, foldo_url = ?, foldo_video_url = ?, contact_email = ?, judge_id = ?, updated_at = ? WHERE id = ?`)
-        .run(out.title, out.track, out.tagline, out.description, out.teamName, JSON.stringify(out.members), out.videoUrl, out.demoUrl, out.foldoUrl, out.foldoVideoUrl, out.contactEmail, judgeId, now(), row.id);
+      db.prepare(`UPDATE submissions SET title = ?, track = ?, tagline = ?, description = ?, team_name = ?, members = ?, video_url = ?, demo_url = ?, foldo_url = ?, foldo_video_url = ?, zaro = ?, contact_email = ?, judge_id = ?, updated_at = ? WHERE id = ?`)
+        .run(out.title, out.track, out.tagline, out.description, out.teamName, JSON.stringify(out.members), out.videoUrl, out.demoUrl, out.foldoUrl, out.foldoVideoUrl, out.zaro ? 1 : 0, out.contactEmail, judgeId, now(), row.id);
       return send(res, 200, { ok: true, id: row.id, editUrl: `${origin(req)}/submit?edit=${row.edit_token}` });
     }
   }
@@ -431,8 +466,10 @@ async function api(req, res, url) {
     const round = Number(b.round); const sid = Number(b.submissionId);
     const s = submissionById(sid);
     if (!s || s.withdrawn) throw new HttpError(404, 'That submission is no longer in the running.');
+    const sp = j.sponsor && SPONSORS.find(x => x.id === j.sponsor);
+    if (sp && !sp.eligible(s)) throw new HttpError(403, `This project isn't entered for the ${sp.name}.`);
     const ph = phase();
-    const allowed = round === 1 ? s.judgeId === j.id && ['submissions', 'review'].includes(ph)
+    const allowed = sp ? round === 1 : round === 1 ? s.judgeId === j.id && ['submissions', 'review'].includes(ph)
       : round === 2 ? ph === 'shortlist' && poolIds().includes(sid)
       : round === 3 ? ph === 'finals' && finalists().includes(sid) : false;
     if (!allowed) throw new HttpError(403, 'This round is not open for scoring right now.');
@@ -441,11 +478,20 @@ async function api(req, res, url) {
     db.prepare(`INSERT INTO scores (judge_id, submission_id, round, impact, originality, execution, trust, verdict, note, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(judge_id, submission_id, round) DO UPDATE SET impact = excluded.impact, originality = excluded.originality, execution = excluded.execution,
       trust = excluded.trust, verdict = excluded.verdict, note = excluded.note, updated_at = excluded.updated_at`)
-      .run(j.id, sid, round, sc.impact, sc.originality, sc.execution, sc.trust, v, clean(b.note, 1000), now());
+      .run(j.id, sid, sp ? sp.round : round, sc.impact, sc.originality, sc.execution, sc.trust, v, clean(b.note, 1000), now());
     return send(res, 200, { ok: true, total: weighted(sc) });
   }
   if (p === '/api/judge/pick' && m === 'PUT') {
     const j = requireJudge(req); const b = await readJson(req);
+    const sp = j.sponsor && SPONSORS.find(x => x.id === j.sponsor);
+    if (sp) {
+      if (b.track !== sp.id) throw new HttpError(400, 'Unknown prize.');
+      if (b.submissionId == null) { setSetting(`sponsorPick:${sp.id}`, null); return send(res, 200, { ok: true }); }
+      const s = submissionById(b.submissionId);
+      if (!s || s.withdrawn || !sp.eligible(s)) throw new HttpError(400, `Pick a project entered for the ${sp.name}.`);
+      setSetting(`sponsorPick:${sp.id}`, s.id);
+      return send(res, 200, { ok: true });
+    }
     if (!['submissions', 'review'].includes(phase())) throw new HttpError(403, 'Top picks are locked now that the shortlist round has started.');
     if (!TRACKS.some(t => t.id === b.track)) throw new HttpError(400, 'Unknown track.');
     if (b.submissionId == null) { db.prepare('DELETE FROM picks WHERE judge_id = ? AND track = ?').run(j.id, b.track); return send(res, 200, { ok: true }); }
@@ -501,9 +547,9 @@ async function api(req, res, url) {
       const { out, errors } = validateSubmission(b);
       if (Object.keys(errors).length) throw new HttpError(422, 'Please check the highlighted fields.', { errors });
       const t = now();
-      db.prepare(`INSERT INTO submissions (title, track, tagline, description, team_name, members, video_url, demo_url, foldo_url, foldo_video_url, contact_email, edit_token, judge_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(out.title, out.track, out.tagline, out.description, out.teamName, JSON.stringify(out.members),
-        out.videoUrl, out.demoUrl, out.foldoUrl, out.foldoVideoUrl, out.contactEmail, crypto.randomBytes(16).toString('hex'), pickJudgeFor(out.track), t, t);
+      db.prepare(`INSERT INTO submissions (title, track, tagline, description, team_name, members, video_url, demo_url, foldo_url, foldo_video_url, zaro, contact_email, edit_token, judge_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(out.title, out.track, out.tagline, out.description, out.teamName, JSON.stringify(out.members),
+        out.videoUrl, out.demoUrl, out.foldoUrl, out.foldoVideoUrl, out.zaro ? 1 : 0, out.contactEmail, crypto.randomBytes(16).toString('hex'), pickJudgeFor(out.track), t, t);
       return send(res, 201, adminState());
     }
     if ((match = p.match(/^\/api\/admin\/submissions\/(\d+)$/)) && m === 'PATCH') {

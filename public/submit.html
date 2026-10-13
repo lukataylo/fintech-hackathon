@@ -23,6 +23,10 @@
     .edit-link{display:flex;gap:8px;margin:26px 0 8px}
     .edit-link input{font-family:"DM Mono",monospace;font-size:13px}
     .closed{padding:120px 0}
+    .zaro-check{display:flex;gap:14px;align-items:flex-start;margin-top:18px;padding:16px 18px;border:1px solid var(--line, rgba(127,127,127,.3));border-radius:12px;cursor:pointer}
+    .zaro-check input{width:20px;height:20px;margin-top:2px;accent-color:var(--orange);flex:none}
+    .zaro-check span{display:grid;gap:4px}
+    .zaro-check small{opacity:.75}
     .agent{margin-top:30px;border:1px solid var(--line-2);padding:18px 18px 16px;background:#0d0d0d}
     .agent p{font-size:14px;color:#cfc9c2;margin:8px 0 12px;line-height:1.55}
     .agent code{display:block;font:13px/1.55 "DM Mono",monospace;color:var(--paper);background:#000;border:1px solid var(--line);padding:12px 14px;word-break:break-word}
@@ -77,6 +81,7 @@
                 ${config.tracks.map((t, i) => `<label><input type="radio" name="track" value="${t.id}" ${s.track === t.id ? 'checked' : ''}><span><span class="mono" style="color:var(--orange)">0${i + 1}</span><b>${esc(t.name)}</b></span></label>`).join('')}
               </div>
             </div>
+            <label class="zaro-check"><input type="checkbox" name="zaro" ${s.zaro ? 'checked' : ''}><span><b>We're entering the Zaro prize</b><small>Tick if you built with Zaro. A Zaro judge will review your project as well.</small></span></label>
           </section>
           <section class="form-section">
             <h2>Project</h2>
@@ -120,7 +125,7 @@
       const fd = new FormData(form);
       return {
         track: fd.get('track') || '', title: fd.get('title'), tagline: fd.get('tagline'), description: fd.get('description'),
-        teamName: fd.get('teamName'), contactEmail: fd.get('contactEmail'), videoUrl: fd.get('videoUrl'), demoUrl: fd.get('demoUrl'), foldoUrl: fd.get('foldoUrl'), foldoVideoUrl: fd.get('foldoVideoUrl'),
+        teamName: fd.get('teamName'), contactEmail: fd.get('contactEmail'), videoUrl: fd.get('videoUrl'), zaro: fd.get('zaro') === 'on', demoUrl: fd.get('demoUrl'), foldoUrl: fd.get('foldoUrl'), foldoVideoUrl: fd.get('foldoVideoUrl'),
         members: [...form.querySelectorAll('.member-row')].map(r => ({ name: r.querySelector('[data-k=name]').value, linkedin: r.querySelector('[data-k=linkedin]').value })),
       };
     }

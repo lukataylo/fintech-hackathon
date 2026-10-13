@@ -3,3 +3,7 @@ data
 scripts
 .env
 guides
+deck
+deck-black
+.claude
+.git
