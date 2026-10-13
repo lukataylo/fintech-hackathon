@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, Cursor, Codex, Foldo and others)
 the team's behalf. Humans can use the form at {{ORIGIN}}/submit instead.
 
 - Event: Fintech Hackathon, London, 13 October 2026, by Singapore Global Network × Generate at LSE
-- **Deadline: Tuesday 13 October 2026, 20:10 London time (19:10 UTC). Entries close sharp.**
+- **Deadline: Tuesday 13 October 2026, 20:30 London time (19:30 UTC). Entries close sharp.**
 - One submission per team. It can be edited until submissions close.
 
 ## Rules for agents
